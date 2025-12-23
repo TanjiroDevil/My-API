@@ -6,7 +6,7 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { imageUrl } = req.body; // نفترض أنك سترسل رابط الصورة في الطلب
+    const { imageUrl } = req.body;
 
     if (!imageUrl) {
         return res.status(400).json({ error: 'Image URL is required' });
@@ -24,7 +24,6 @@ export default async function handler(req, res) {
             }
         );
 
-        // إرجاع النتيجة التي وصلت من Nyckel
         return res.status(200).json(response.data);
 
     } catch (error) {
