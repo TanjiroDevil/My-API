@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 module.exports = async (req, res) => {
-    const startTime = Date.now(); // لبدء حساب السرعة
+    const startTime = Date.now(); 
 
     // إعدادات الحماية والـ CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,22 +43,24 @@ module.exports = async (req, res) => {
                 { headers: { 'Content-Type': 'application/json' } }
             );
 
-            const endTime = Date.now();
+            // ترجمة النتائج إلى العربية 🙂✨
+            let labelArabic = nyckelResponse.data.labelName;
+            if (labelArabic.toLowerCase() === 'porn') {
+                labelArabic = 'محتوى غير لائق ⚠️';
+            } else if (labelArabic.toLowerCase() === 'safe') {
+                labelArabic = 'محتوى آمن ✅';
+            }
 
             // 5. الاستجابة الاحترافية النهائية
             return res.status(200).send(JSON.stringify({
                 success: true,
                 result: {
-                    label: nyckelResponse.data.labelName,
+                    label: labelArabic,
                     confidence: (nyckelResponse.data.confidence * 100).toFixed(2) + "%",
                     id: nyckelResponse.data.labelId
                 },
                 image_info: {
-                    type: contentType,
-                    size_kb: Math.round(imageResponse.data.length / 1024)
-                },
-                performance: {
-                    execution_time: `${endTime - startTime}ms`
+                    type: contentType
                 },
                 developer: "Tanjiro"
             }, null, 4));
@@ -80,7 +82,7 @@ module.exports = async (req, res) => {
     return res.status(200).send(JSON.stringify({
         api_name: "Tanjiro NSFW Detector",
         version: "2.0.0",
-        status: "Online",
+        status: "Online 🙂✨",
         endpoints: {
             analyze: {
                 method: "GET/POST",
