@@ -1,35 +1,42 @@
 const axios = require('axios');
 
 export default async function handler(req, res) {
-    // السماح فقط بطلبات POST
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
+        return res.status(405).json({ error: 'يرجى استخدام POST طلب' });
     }
 
     const { imageUrl } = req.body;
 
     if (!imageUrl) {
-        return res.status(400).json({ error: 'Image URL is required' });
+        return res.status(400).json({ error: 'يرجى تزويد رابط الصورة imageUrl' });
     }
 
     try {
         const response = await axios.post(
-            'https://www.nyckel.com/v1/functions/YOUR_FUNCTION_ID/invoke', 
-            { data: imageUrl },
+            'https://www.nyckel.com/v1/functions/o2f0jzcdyut2qxhu/invoke',
+            { data: imageUrl }, 
             {
                 headers: {
-                    'Authorization': 'Bearer YOUR_BEARER_TOKEN',
                     'Content-Type': 'application/json'
                 }
             }
         );
-
+        
         return res.status(200).json(response.data);
 
     } catch (error) {
+        console.error(error);
         return res.status(500).json({ 
-            error: 'Failed to analyze image', 
-            details: error.message 
+            error: 'حدث خطأ في تحليل الصورة',
+            details: error.response ? error.response.data : error.message 
         });
     }
 }
