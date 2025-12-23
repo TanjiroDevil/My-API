@@ -1,11 +1,14 @@
 const axios = require('axios');
 
 module.exports = async (req, res) => {
+    const startTime = Date.now(); // لبدء حساب السرعة
+
     // إعدادات الحماية والـ CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('X-Powered-By', 'Tanjiro-Engine ⚡');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Powered-By', 'Tanjiro-Engine');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
@@ -13,66 +16,78 @@ module.exports = async (req, res) => {
 
     if (imageUrl) {
         try {
-            // 1. جلب الصورة باستخدام الـ User-Agent الخاص بك
+            // 1. محاولة جلب الصورة مع الـ User-Agent الخاص بك
             const imageResponse = await axios.get(imageUrl.trim(), {
                 responseType: 'arraybuffer',
-                timeout: 10000,
+                timeout: 8000,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Linux; Android 12; V2029 Build/SP1A.210812.003) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.34 Mobile Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Linux; Android 12; V2029 Build/SP1A.210812.003) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.7499.34 Mobile Safari/537.36',
+                    'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
                 }
             });
 
-            // 2. تحويل الصورة إلى Base64
+            // 2. التحقق مما إذا كان الملف المستلم صورة فعلاً
             const contentType = imageResponse.headers['content-type'];
+            if (!contentType || !contentType.startsWith('image/')) {
+                throw new Error(`الرابط لا يشير إلى صورة صالحة. النوع المستلم: ${contentType}`);
+            }
+
+            // 3. تحويل الصورة إلى Base64
             const base64Image = Buffer.from(imageResponse.data, 'binary').toString('base64');
             const dataUrl = `data:${contentType};base64,${base64Image}`;
 
-            // 3. تحليل الصورة عبر Nyckel
+            // 4. إرسالها إلى Nyckel
             const nyckelResponse = await axios.post(
                 'https://www.nyckel.com/v1/functions/o2f0jzcdyut2qxhu/invoke',
                 { data: dataUrl },
                 { headers: { 'Content-Type': 'application/json' } }
             );
 
-            // 4. تعريب النتيجة وتجهيز الرد
-            let labelArabic = nyckelResponse.data.labelName;
-            let statusEmoji = "✨";
+            const endTime = Date.now();
 
-            if (labelArabic.toLowerCase() === 'porn') {
-                labelArabic = "محتوى غير لائق (إباحي) 🔞";
-                statusEmoji = "⚠️";
-            } else if (labelArabic.toLowerCase() === 'not porn') {
-                labelArabic = "محتوى آمن ونظيف ✅";
-                statusEmoji = "🛡️";
-            }
-
+            // 5. الاستجابة الاحترافية النهائية
             return res.status(200).send(JSON.stringify({
                 success: true,
-                message: "تم تحليل الصورة بنجاح " + statusEmoji,
                 result: {
-                    label: labelArabic,
-                    confidence: (nyckelResponse.data.confidence * 100).toFixed(2) + "%"
+                    label: nyckelResponse.data.labelName,
+                    confidence: (nyckelResponse.data.confidence * 100).toFixed(2) + "%",
+                    id: nyckelResponse.data.labelId
                 },
                 image_info: {
-                    type: contentType
+                    type: contentType,
+                    size_kb: Math.round(imageResponse.data.length / 1024)
                 },
-                developer: "Tanjiro 👨🏻‍💻"
+                performance: {
+                    execution_time: `${endTime - startTime}ms`
+                },
+                developer: "Tanjiro"
             }, null, 4));
 
         } catch (error) {
-            return res.status(500).send(JSON.stringify({
+            const statusCode = error.response ? error.response.status : 500;
+            return res.status(statusCode).send(JSON.stringify({
                 success: false,
-                error: "حدث خطأ أثناء المعالجة ❌",
-                details: error.message
+                error: {
+                    code: statusCode,
+                    message: error.message,
+                    details: error.response ? error.response.data : "No extra details"
+                }
             }, null, 4));
         }
     }
 
-    // واجهة الاستخدام عند الدخول للرابط مباشرة
+    // واجهة الاستخدام الاحترافية (عند عدم وجود رابط)
     return res.status(200).send(JSON.stringify({
-        api_name: "Tanjiro NSFW Detector 🛡️",
-        status: "Online 🟢",
-        instructions: "يرجى إرسال رابط الصورة عبر imageUrl لتحديد نوع المحتوى.",
-        example: `https://${req.headers.host}/api/ai/classify?imageUrl=رابط_الصورة_هنا`
+        api_name: "Tanjiro NSFW Detector",
+        version: "2.0.0",
+        status: "Online",
+        endpoints: {
+            analyze: {
+                method: "GET/POST",
+                path: "/api/ai/classify",
+                params: { imageUrl: "URL string" }
+            }
+        },
+        example: `https://${req.headers.host}/api/ai/classify?imageUrl=https://files.catbox.moe/6zwy2b.jpg`
     }, null, 4));
 };
