@@ -1,83 +1,82 @@
 import axios from "axios";
-import FormData from "form-data";
 
 class NyckelAPI {
   constructor() {
     this.baseUrl = "https://www.nyckel.com/v1/functions/o2f0jzcdyut2qxhu/invoke";
     this.headers = {
-      "user-agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
-      "origin": "https://www.nyckel.com",
-      "referer": "https://www.nyckel.com/pretrained-classifiers/nsfw-identifier/",
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36"
     };
   }
 
   async scan(imageUrl) {
     try {
-      // 1. تحميل الصورة كـ Buffer
-      const imageRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-      const buffer = Buffer.from(imageRes.data, 'binary');
-
-      // 2. تجهيز الـ FormData
-      const form = new FormData();
-      form.append("file", buffer, {
-        filename: "image.jpg",
-        contentType: imageRes.headers["content-type"] || "image/jpeg",
+      // تحميل الصورة
+      const res = await axios.get(imageUrl.trim(), {
+        responseType: "arraybuffer",
+        timeout: 10000
       });
 
-      // 3. إرسال الطلب لـ Nyckel
-      const response = await axios.post(this.baseUrl, form, {
-        headers: {
-          ...this.headers,
-          ...form.getHeaders()
-        }
-      });
+      const contentType = res.headers["content-type"] || "image/jpeg";
+      
+      // تحويل الـ Buffer إلى Base64 (يعمل في بيئة Node.js ESM بشكل طبيعي)
+      const base64Image = Buffer.from(res.data).toString("base64");
+      const dataUrl = `data:${contentType};base64,${base64Image}`;
+
+      // إرسال الطلب
+      const response = await axios.post(this.baseUrl, 
+        { data: dataUrl }, 
+        { headers: this.headers }
+      );
 
       return response.data;
     } catch (error) {
-      console.error("Error in Nyckel Scan:", error.message);
+      console.error("Scan Error:", error.message);
       return null;
     }
   }
 }
 
 export default async function handler(req, res) {
-  // إعدادات CORS
+  // ترويسات الاستجابة
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("X-Powered-By", "Tanjiro-Engine");
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // الحصول على الرابط سواء من GET أو POST
+  // الحصول على الرابط
   const imageUrl = req.query.imageUrl || (req.body && req.body.imageUrl);
 
   if (!imageUrl) {
-    return res.status(200).json({
-      api: "Nyckel NSFW Scanner",
+    return res.status(200).send(JSON.stringify({
+      api: "Nyckel NSFW Scanner (ESM)",
       status: "Online 🙂✨",
-      message: "Please provide an imageUrl parameter"
-    });
+      dev: "Tanjiro ✨"
+    }, null, 4));
   }
 
   try {
     const nyckel = new NyckelAPI();
     const result = await nyckel.scan(imageUrl);
 
-    if (!result) {
-      return res.status(400).json({ status: "error", message: "فشل في معالجة الصورة" });
-    }
+    if (!result) throw new Error("فشل في معالجة الصورة");
 
-    return res.status(200).json({
+    let label = result.labelName === 'Porn' ? 'محتوى غير لائق ⚠️' : 
+                result.labelName === 'Safe' ? 'محتوى آمن ✅' : result.labelName;
+
+    return res.status(200).send(JSON.stringify({
       status: "success",
-      label: result.labelName,
-      confidence: result.confidence,
+      label: label,
+      confidence: (result.confidence * 100).toFixed(2) + "%",
       dev: "Tanjiro ✨"
-    });
+    }, null, 4));
 
   } catch (error) {
-    return res.status(500).json({
+    return res.status(500).send(JSON.stringify({
       status: "error",
-      message: "Internal Server Error",
-      details: error.message
-    });
+      message: error.message
+    }, null, 4));
   }
 }
